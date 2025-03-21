@@ -16,10 +16,10 @@ Create a .env file and insert your Gemini api key in the following format:
 ```bash
 GEMINI_API_KEY=Ap3j42akj324posaufsdkl2h4234
 ```
-^^^ That's not a real key so don't try it :\
+^^^ That's not a real key so don't try it :/
 
 
-# Run the chatbot:
+## Run the chatbot:
 ```bash
 streamlit run chat.py
 ```
