@@ -1,11 +1,16 @@
 from dotenv import load_dotenv
 import streamlit as st
 import os
-from google import genai
+import google.generativeai as genai
 
 # Load environment variables
 load_dotenv()
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Configure the API key globally
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Initialize the GenerativeModel without api_key parameter
+client = genai.GenerativeModel(model_name="gemini-2.0-flash")
 
 # Initialize session state
 if "history" not in st.session_state:
@@ -23,22 +28,42 @@ def send_message():
 
 # Send questions to Gemini and get its response
 def ask_gemini(question: str) -> str:
-    query = f"""
-    This is context for your response: {st.session_state.context}.
-    This is the conversation history: {st.session_state.history}. Remember what has been asked as context for responses, 
-    but only refer to this history if the user requests it.
-    This is the user's current question: {question}.
-    """
+    # Convert history to proper format
+    chat_history = []
     
-    response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=query
-    )
-
+    # Iterate through User and Bot messages
+    for i in range(0, len(st.session_state.history), 2):
+        if i < len(st.session_state.history):
+            user_msg = st.session_state.history[i].replace("User: ", "") # Get rid of the "User" label
+            chat_history.append({"role": "user", "parts": [{"text": user_msg}]})
+            
+            if i+1 < len(st.session_state.history):
+                bot_msg = st.session_state.history[i+1].replace("Bot: ", "") # Get rid of the "Bot" label
+                chat_history.append({"role": "model", "parts": [{"text": bot_msg}]})
+    
+    # Add system prompt with context
+    system_instruction = f"Consider this context information: {st.session_state.context}"
+    
+    # Start conversation with system message if we have context
+    if st.session_state.context:
+        messages = [{"role": "user", "parts": [{"text": system_instruction}]}, 
+                   {"role": "model", "parts": [{"text": "I'll keep that context in mind."}]}]
+        messages.extend(chat_history)
+    else:
+        messages = chat_history
+    
+    # Add current question
+    messages.append({"role": "user", "parts": [{"text": question}]})
+    
+    # Send the request properly formatted
+    response = client.generate_content(messages)
+    
     # Update conversation history
     st.session_state.history.append(f"User: {question}")
     st.session_state.history.append(f"Bot: {response.text}")
-
+    
     return response.text
+
 
 # Run Streamlit frontend
 def run_app():
