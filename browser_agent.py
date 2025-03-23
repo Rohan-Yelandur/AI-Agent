@@ -12,10 +12,11 @@ llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash', api_key=os.getenv('GEMINI
 async def main():
     # Create agent with the model
     agent = Agent(
-        task="Go on google maps and find apartments near AUS 13 in Austin for me to sublease this summer.",
+        task="Go to amazon and find me pixel 8 under $250. After results are visible, wait for 1 minute.",
         llm=llm
     )
     result = await agent.run()
+    
     print(result)
 
 # Run the async function
