@@ -2,14 +2,30 @@ from dotenv import load_dotenv
 import streamlit as st
 import os
 from google import genai
-import re
 from PIL import Image
-import io
+import base64
 
 # Load environment variables
 load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Supported file types
+SUPPORTED_MIME_TYPES = [
+    # Images
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    # Text
+    "text/plain",
+    "text/csv",
+    "text/html",
+    "text/javascript",
+    "application/json",
+    # PDFs
+    "application/pdf",
+]
 
 # Initialize session state
 if "history" not in st.session_state:
@@ -18,14 +34,15 @@ if "history" not in st.session_state:
 if "context" not in st.session_state:
     st.session_state.context = ""
 
-if "image" not in st.session_state:
-    st.session_state.image = None
+if "uploaded_file" not in st.session_state:
+    st.session_state.uploaded_file = None
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 
 
+# Query Gemini and get its response
 # Query Gemini and get its response
 def ask_gemini(question: str) -> str:
     message = []
@@ -40,31 +57,67 @@ def ask_gemini(question: str) -> str:
 
     # Add question to parts
     message.append(f"Current user question: {question}")
-
-    # Handle image if uploaded
-    if st.session_state.image is not None:
-        image = Image.open(st.session_state.image)
-        message.append(f"Image constraint: Response should NOT contain mention of image unless image is referenced by user.")
-        
-        # Generate content with text and image
-        response = client.models.generate_content(
-            model="gemini-2.0-flash", 
-            contents=[message, image]
-        )
-    else:
-        # Generate content with text only
-        response = client.models.generate_content(
-            model="gemini-2.0-flash", 
-            contents=message
-        )
-
-    # Update chat history immediately
-    st.session_state.history.append(f"User: {question}")
-    st.session_state.history.append(f"Bot: {response.text}")
+    message_str = " ".join(message)
     
-    update_chat_history()  # Update chat history for Streamlit
+    constraint = " File constraint: Response should NOT mention the file unless referenced by user."
 
-    return response.text
+    try:
+        # Handle file if uploaded
+        if st.session_state.uploaded_file is not None:
+            file = st.session_state.uploaded_file
+            
+            # Check if file type is supported
+            if file.type not in SUPPORTED_MIME_TYPES:
+                return f"Sorry, the file type {file.type} is not supported by Gemini. Supported types include images, PDFs, and text files."
+            
+            # Process based on file type
+            if file.type.startswith('image/'):
+                # Process as image
+                image = Image.open(file)
+                
+                # Generate content with text and image
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[message_str + constraint, image]
+                )
+            else:
+                # For non-image files
+                file_bytes = file.getvalue()
+                
+                # Use the Part creation properly for files
+                file_part = {
+                    "inline_data": {
+                        "mime_type": file.type,
+                        "data": base64.b64encode(file_bytes).decode('utf-8')
+                    }
+                }
+                
+                # Generate content with text and file
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[message_str + constraint, file_part]
+                )
+        else:
+            # Generate content with text only
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                contents=message_str
+            )
+
+        # Update chat history immediately
+        st.session_state.history.append(f"User: {question}")
+        st.session_state.history.append(f"Bot: {response.text}")
+        
+        update_chat_history()  # Update chat history for Streamlit
+
+        return response.text
+    
+    except Exception as e:
+        error_message = f"Error: {str(e)}"
+        st.error(error_message)
+        return f"Sorry, I encountered an error processing your request: {str(e)}"
+
+
 
 
 
@@ -87,7 +140,7 @@ def update_chat_history():
 
 
 
-# ------ Streamlit Frontend ----------------------------------------------
+# ------ Streamlit Frontend ----------------------------------------------------------------
 
 # Styles and displays conversation history in Streamlit
 def display_conversation():
@@ -131,6 +184,7 @@ def run_app():
     if st.sidebar.button("Clear Chat History"):
         st.session_state.history = []
         st.session_state.chat_history = []
+        st.session_state.uploaded_file = None
         st.rerun()  # Refresh the page
 
     # Sidebar for context input
@@ -138,17 +192,27 @@ def run_app():
     st.sidebar.write("Add context for the chatbot to consider in its responses.")
     st.session_state.context = st.sidebar.text_area("Context:", placeholder="Enter additional context here...")
 
-    # Image uploader
-    st.sidebar.title("Upload an Image")
-    uploaded_image = st.sidebar.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
-    if uploaded_image is not None:
-        st.session_state.image = uploaded_image
-        st.sidebar.image(uploaded_image, caption="Uploaded Image", use_container_width=True)
+    # File uploader with supported file types information
+    st.sidebar.title("Upload a File")
+    st.sidebar.caption("Supported files: Images (JPEG, PNG, etc.), PDF, and text files")
+    uploaded_file = st.sidebar.file_uploader("Choose a file")
+    
+    if uploaded_file is not None:
+        # Check if file type is supported
+        if uploaded_file.type not in SUPPORTED_MIME_TYPES:
+            st.sidebar.error(f"File type {uploaded_file.type} is not supported. Please upload a supported file type.")
+        else:
+            st.session_state.uploaded_file = uploaded_file
+            
+            # Only display preview for image files
+            if uploaded_file.type.startswith('image/'):
+                st.sidebar.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
+            else:
+                st.sidebar.success(f"File uploaded: {uploaded_file.name}")
 
     # Handle user input 
     handle_user_input()
-    display_conversation()
-
+    display_conversation()  
 
 if __name__ == "__main__":
     run_app()

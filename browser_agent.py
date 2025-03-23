@@ -12,7 +12,10 @@ llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash', api_key=os.getenv('GEMINI
 async def main():
     # Create agent with the model
     agent = Agent(
-        task="Go to amazon and find me pixel 8 under $250. After results are visible, wait for 1 minute.",
+        task="""
+        First, search for the cheapest and best ski resort in Colorado.
+        Could you make a reservation at this resort for a cabin on 12/13/25.
+        """,
         llm=llm
     )
     result = await agent.run()
