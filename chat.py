@@ -9,7 +9,6 @@ import io
 
 # Load environment variables
 load_dotenv()
-
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Supported file types
@@ -60,7 +59,7 @@ def ask_gemini(question: str) -> str:
 
     # Check if question explicitly asks for image generation
     is_image_request = any(phrase in question.lower() for phrase in 
-                         ["create image", "generate image", "draw", "show me", "picture of", "image of"])
+                         ["create image", "generate image", "draw", "show me", "picture of", "image of", "generate", "create", "drawing"])
 
     # Add model specification for image generation requests
     model_name = "gemini-2.0-flash-exp-image-generation" if is_image_request else "gemini-2.0-flash" 
@@ -225,7 +224,6 @@ def display_conversation():
                                 # Process the binary image data directly
                                 image = Image.open(io.BytesIO(media['data']))
                                 st.image(image, use_container_width=True)
-                                st.sidebar.success(f"Successfully displayed image of type {media['mime_type']}")
                             except Exception as img_error:
                                 st.error(f"Error displaying image: {img_error}")
 

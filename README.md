@@ -1,5 +1,6 @@
 # Conversational Chatbot
 Uses Google's Gemini-2.0-Flash. Saves conversation history and supports context management.
+Try it now at : https://rhn-chatbot.streamlit.app/
 
 ## Setup
 Clone the repository:
